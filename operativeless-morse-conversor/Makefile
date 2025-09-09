@@ -72,27 +72,6 @@ mount-efi:
 	sudo mkdir -p $(MOUNT_POINT)/EFI/BOOT
 	@echo "Setup completado. Partición EFI montada en $(MOUNT_POINT)"
 
-# Remontar la partición EFI (útil si ya existe el loop device)
-remount:
-	@echo "Detectando loop device existente para $(DISK_IMAGE)..."
-	$(eval LOOP_DEVICE := $(shell losetup -j $(DISK_IMAGE) | cut -d: -f1))
-	@if [ -z "$(LOOP_DEVICE)" ]; then \
-		echo "No se encontró loop device para $(DISK_IMAGE). Configurando..."; \
-		sudo losetup -fP $(DISK_IMAGE); \
-		LOOP_DEVICE=$$(losetup -j $(DISK_IMAGE) | cut -d: -f1); \
-	fi
-	@echo "Usando loop device: $(LOOP_DEVICE)"
-	@echo "Verificando si $(MOUNT_POINT) ya está montado..."
-	@if mountpoint -q $(MOUNT_POINT); then \
-		echo "$(MOUNT_POINT) ya está montado. Desmontando primero..."; \
-		sudo umount $(MOUNT_POINT); \
-	fi
-	@echo "Creando punto de montaje $(MOUNT_POINT)..."
-	sudo mkdir -p $(MOUNT_POINT)
-	@echo "Montando partición EFI ($(LOOP_DEVICE)p1) en $(MOUNT_POINT)..."
-	sudo mount $(LOOP_DEVICE)p1 $(MOUNT_POINT)
-	@echo "Partición EFI remontada exitosamente en $(MOUNT_POINT)"
-
 # Compilar el booter y copiarlo a la partición EFI
 compile:
 	@echo "Compilando booter desde $(BOOTER_SOURCE)..."
@@ -133,20 +112,11 @@ execute:
 	@echo "Iniciando QEMU con booter EFI..."
 	qemu-system-x86_64 \
 		-cpu qemu64 \
+		-serial mon:stdio \
+		-vga std \
 		-drive if=pflash,format=raw,readonly=on,file=$(OVMF_CODE) \
 		-drive if=pflash,format=raw,file=$(OVMF_VARS) \
 		-drive file=$(DISK_IMAGE),format=raw
-
-# Desmontar y limpiar
-cleanup:
-	@echo "Desmontando partición EFI..."
-	-sudo umount $(MOUNT_POINT) 2>/dev/null || true
-	@echo "Detectando loop device para limpieza..."
-	$(eval LOOP_DEVICE := $(shell losetup -j $(DISK_IMAGE) | cut -d: -f1))
-	@if [ -n "$(LOOP_DEVICE)" ]; then \
-		echo "Desconectando loop device $(LOOP_DEVICE)..."; \
-		sudo losetup -d $(LOOP_DEVICE); \
-	fi
 
 # Limpiar completamente (incluye eliminar el archivo de imagen)
 clean: cleanup
@@ -156,6 +126,7 @@ clean: cleanup
 	rm -f $(BOOTER_OBJ) $(BOOTER_EFI)
 	@echo "Eliminando archivo de variables OVMF..."
 	rm -f $(OVMF_VARS)
+	clear
 
 # Mostrar información del setup actual
 info:
@@ -192,10 +163,8 @@ help:
 	@echo "  create-partitions - Crear particiones GPT"
 	@echo "  format-partitions - Formatear particiones con FAT32"
 	@echo "  mount-efi     - Montar partición EFI y crear directorios"
-	@echo "  remount       - Remontar partición EFI (si ya existe el archivo)"
 	@echo "  compile       - Compilar booter y copiarlo a la partición EFI"
 	@echo "  execute       - Ejecutar booter en QEMU (desmonta y ejecuta)"
-	@echo "  cleanup       - Desmontar y desconectar loop device"
 	@echo "  clean         - Limpiar todo (incluye eliminar archivos)"
 	@echo "  info          - Mostrar información del setup actual"
 	@echo "  help          - Mostrar esta ayuda"
