@@ -42,11 +42,6 @@ endif
 
 # flujo inicial completo
 all: setup-disk create-partitions format-partitions mount-efi compile
-	ifeq ($(TARGET),image)
-		@echo "==> listo. Ahora haz 'make execute' para probar en QEMU (solo image)."
-	else ifeq ($(TARGET),usb)
-		@echo "==> USB listo."
-	endif
 
 # crear archivo de disco + asociar loop
 setup-disk:
