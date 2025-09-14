@@ -28,11 +28,11 @@ DEFAULT REL
 
 section .data
     ; Program messages
-    welcome_msg db __utf16__(`Bienvenido al Convertidor a Morse Sin Sistema Operativo!\r\n`), 0
-    prompt_msg db __utf16__(`\r\nIngrese el Texto a Traducir:`), 0
-    morse_msg db __utf16__(`Mosrificado:`), 0
-    new_line db __utf16__(`\r\n`), 0
-    goodbye_msg db __utf16__(`Gracias por usar, adios!\r\n`), 0
+    welcome_msg dw __utf16__(`Bienvenido al Convertidor a Morse Sin Sistema Operativo!\r\n`), 0
+    prompt_msg dw __utf16__(`\r\nIngrese el Texto a Traducir:`), 0
+    morse_msg dw __utf16__(`Mosrificado:`), 0
+    new_line: dw 0x000D, 0
+    goodbye_msg dw __utf16__(`Gracias por usar, adios!\r\n`), 0
 
     ALIGN 8
     LETTERS:
@@ -41,46 +41,47 @@ section .data
         dq ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE
     
     ALIGN 2
-    A: dw '.', '-',0                    
-    B: dw '-', '.', '.', '.',0          
-    C: dw '-', '.', '-', '.',0          
-    D: dw '-', '.', '.',0               
-    E: dw '.',0                         
-    F: dw '.', '.', '-', '.',0          
-    G: dw '-', '-', '.',0               
-    H: dw '.', '.', '.', '.',0          
-    I: dw '.', '.',0                    
-    J: dw '.', '-', '-', '-',0          
-    K: dw '-', '.', '-',0               
-    L: dw '.', '-', '.', '.',0          
-    M: dw '-', '-',0                    
-    N: dw '-', '.',0
-    O: dw '-', '-', '-',0               
-    P: dw '.', '-', '-', '.',0          
-    Q: dw '-', '-', '.', '-',0          
-    R: dw '.', '-', '.',0               
-    S: dw '.', '.', '.',0               
-    T: dw '-',0                         
-    U: dw '.', '.', '-',0               
-    V: dw '.', '.', '.', '-',0          
-    W: dw '.', '-', '-',0               
-    X: dw '-', '.', '.', '-',0          
-    Y: dw '-', '.', '-', '-',0         
-    Z: dw '-', '-', '.', '.',0          
+        A: dw __utf16__(".-"), 0
+    B: dw __utf16__("-..."), 0
+    C: dw __utf16__("-.-."), 0
+    D: dw __utf16__("-.."), 0
+    E: dw __utf16__("."), 0
+    F: dw __utf16__("..-."), 0
+    G: dw __utf16__("--."), 0
+    H: dw __utf16__("...."), 0
+    I: dw __utf16__(".."), 0
+    J: dw __utf16__(".---"), 0
+    K: dw __utf16__("-.-"), 0
+    L: dw __utf16__(".-.."), 0
+    M: dw __utf16__("--"), 0
+    N: dw __utf16__("-."), 0
+    O: dw __utf16__("---"), 0
+    P: dw __utf16__(".--."), 0
+    Q: dw __utf16__("--.-"), 0
+    R: dw __utf16__(".-."), 0
+    S: dw __utf16__("..."), 0
+    T: dw __utf16__("-"), 0
+    U: dw __utf16__("..-"), 0
+    V: dw __utf16__("...-"), 0
+    W: dw __utf16__(".--"), 0
+    X: dw __utf16__("-..-"), 0
+    Y: dw __utf16__("-.--"), 0
+    Z: dw __utf16__("--.."), 0  
 
-    ZERO: dw '-', '-', '-', '-', '-',0     
-    ONE: dw '.', '-', '-', '-', '-',0     
-    TWO: dw '.', '.', '-', '-', '-',0     
-    THREE: dw '.', '.', '.', '-', '-',0     
-    FOUR: dw '.', '.', '.', '.', '-',0     
-    FIVE: dw '.', '.', '.', '.', '.',0     
-    SIX: dw '-', '.', '.', '.', '.',0     
-    SEVEN: dw '-', '-', '.', '.', '.',0     
-    EIGHT: dw '-', '-', '-', '.', '.',0    
-    NINE: dw '-', '-', '-', '-', '.',0
+    ZERO:  dw __utf16__("-----"), 0
+    ONE:   dw __utf16__(".----"), 0
+    TWO:   dw __utf16__("..---"), 0
+    THREE: dw __utf16__("...--"), 0
+    FOUR:  dw __utf16__("....-"), 0
+    FIVE:  dw __utf16__("....."), 0
+    SIX:   dw __utf16__("-...."), 0
+    SEVEN: dw __utf16__("--..."), 0
+    EIGHT: dw __utf16__("---.."), 0
+    NINE:  dw __utf16__("----."), 0
+
 
     ; Unkwnown character
-    UNKNOWN: dw '?',0
+    UNKNOWN: dw __utf16__("?"), 0
 
 section .bss
     ; Interfaces de UEFI
