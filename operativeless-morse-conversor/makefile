@@ -22,12 +22,6 @@ NASM := nasm
 LINK := lld-link
 QEMU := qemu-system-x86_64
 
-# audio QEMU
-AUDIO_BACKEND ?= pa
-AUDIO_ID      := ad0
-QEMU_AUDIO    := -audiodev $(AUDIO_BACKEND),id=$(AUDIO_ID)
-QEMU_PCSPK    := -machine pcspk-audiodev=$(AUDIO_ID)
-
 # flags
 NASMFLAGS    := -f win64
 LDFLAGS      := -subsystem:efi_application -entry:_start
@@ -48,7 +42,11 @@ endif
 
 # flujo inicial completo
 all: setup-disk create-partitions format-partitions mount-efi compile
-	@echo "==> listo. Ahora haz 'make execute' para probar en QEMU (solo image)."
+	ifeq ($(TARGET),image)
+		@echo "==> listo. Ahora haz 'make execute' para probar en QEMU (solo image)."
+	else ifeq ($(TARGET),usb)
+		@echo "==> USB listo."
+	endif
 
 # crear archivo de disco + asociar loop
 setup-disk:
@@ -140,27 +138,12 @@ ifeq ($(TARGET),image)
 	fi
 	@if [ ! -f "$(OVMF_VARS)" ]; then mkdir -p "$(OUT_DIR)"; cp "$(OVMF_VARS_SRC)" "$(OVMF_VARS)"; fi
 	$(QEMU) -m 512M -cpu qemu64 \
-	  $(QEMU_AUDIO) $(QEMU_PCSPK) \
 	  -drive if=pflash,format=raw,readonly=on,file="$(OVMF_CODE)" \
 	  -drive if=pflash,format=raw,file="$(OVMF_VARS)" \
 	  -drive file="$(DISK_IMAGE)",format=raw
 else
 	@echo "==> 'make execute' solo está disponible en modo imagen."
 endif
-
-
-# compilar y copiar a la USB (modo rapido)
-install: $(EFI_FILE)
-	@if [ "$(TARGET)" != "usb" ]; then \
-	  echo "Este target es solo para TARGET=usb"; exit 1; \
-	fi
-	@if [ -z "$(DISK_IMAGE)" ]; then echo "Debes pasar DISK_IMAGE=/dev/sdX"; exit 1; fi
-	sudo mkdir -p "$(MNT_DIR)"
-	sudo mount "$(DISK_IMAGE)1" "$(MNT_DIR)"
-	sudo mkdir -p "$(MNT_DIR)/EFI/BOOT"
-	sudo cp "$(EFI_FILE)" "$(MNT_DIR)/EFI/BOOT/$(EFI_NAME)"
-	sudo umount "$(MNT_DIR)"
-	@echo "==> Instalado en la USB: $(DISK_IMAGE)"
 
 # desmontar/soltar loop
 cleanup:

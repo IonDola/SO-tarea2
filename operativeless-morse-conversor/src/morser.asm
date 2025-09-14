@@ -22,6 +22,13 @@ DEFAULT REL
 %define BACKSPACE_UC 0x08
 %define SPACE_UC 0x20
 %define OVERFLOW_CHAR 0x9F
+%define A_UC 0x0041
+%define Z_UC 0x005A
+%define a_UC 0x0061
+%define z_UC 0x007A
+%define ZERO_UC 0x0030
+%define NINE_UC 0x0039
+%define SLASH_UC 0x002F
 ; Other constants
 %define HALF_SECCOND_DELAY 0x04738B80 ; Medio segundo
 %define NEXT_CHARACTER 0x02
@@ -30,7 +37,7 @@ section .data
     ; Program messages
     welcome_msg dw __utf16__(`Bienvenido al Convertidor a Morse Sin Sistema Operativo!\r\n`), 0
     prompt_msg dw __utf16__(`\r\nIngrese el Texto a Traducir:`), 0
-    morse_msg dw __utf16__(`Mosrificado:`), 0x000D, 0x000A, 0
+    morse_msg dw __utf16__(`Morsificado:`), 0x000D, 0x000A, 0
     new_line: dw 0x000D, 0x000A, 0
     goodbye_msg dw __utf16__(`Gracias por usar, adios!`), 0x000D, 0x000A, 0
 
@@ -89,7 +96,7 @@ section .bss
 
     ; Buffers
     align 2
-    input_buffer db 256 dup(0)
+    input_buffer resw 256
     output_buffer resw 2048
     end_of_output_buffer:
 
@@ -161,10 +168,12 @@ _start:
 
         ; Guardar caracter
     .store_char:
-        mov [input_buffer + rbx], al
+        movzx ax, al
+        mov [input_buffer + rbx*2], ax
         inc rbx
+
         sub rsp, STACK_ALIGMENT
-        mov word [rsp], dx
+        mov word [rsp], ax
         mov word [rsp + 2], 0
         mov rcx, r14
         mov rdx, rsp
@@ -177,7 +186,7 @@ _start:
         jz .read_loop
 
         dec ebx
-        mov byte [input_buffer + rbx], 0
+        mov word [input_buffer + rbx*2], 0
         ; Mover cursor atras, imprimir espacio y mover cursor atras de nuevo
         sub rsp, STACK_ALIGMENT
         mov word [rsp], BACKSPACE_UC
@@ -191,7 +200,7 @@ _start:
         jmp .read_loop
     
     .process_input:
-        mov byte [input_buffer + rbx], 0 ; Null-terminate input
+        mov word [input_buffer + rbx*2], 0 ; Null-terminate input
         test ebx, ebx
         jz .repl ; Si no hay input, repetir
 
@@ -250,10 +259,10 @@ convert:
     xor r8, r8          ; Índice de letras
 
 .next_char:
-    movzx rax, byte [rsi + r8]
+    movzx rax, word [rsi + r8*2]
     test rax, rax
     jz .done; Fin del string
-    mov dl, al
+    mov dx, ax
 
     ; Detectar espacio
     cmp dl, ' '
@@ -263,28 +272,28 @@ convert:
 
 .not_space:
     ; Detectar si es mayuscula
-    cmp dl, 'A'
+    cmp dx, A_UC
     jb .check_lower
-    cmp dl, 'Z'
+    cmp dx, Z_UC
     ja .check_lower
-    sub dl, 'A' ; Convertir a índice 0-25
+    sub dx, A_UC ; Convertir a índice 0-25
     jmp .fetch_letter
 
 
 .check_lower:
-    cmp dl, 'a'
+    cmp dx, a_UC
     jb .check_number
-    cmp dl, 'z'
+    cmp dx, z_UC
     ja .check_number
-    sub dl, 'a' ; Convertir a índice 0-25
+    sub dx, a_UC ; Convertir a índice 0-25
     jmp .fetch_letter
 
 .check_number:
-    cmp dl, '0'
+    cmp dx, ZERO_UC
     jb .unknown_char
-    cmp dl, '9'
+    cmp dx, NINE_UC
     ja .unknown_char
-    sub dl, '0' ; Convertir a índice 0-9
+    sub dx, ZERO_UC ; Convertir a índice 0-9
     jmp .fetch_number
 
 .unknown_char:
@@ -292,13 +301,13 @@ convert:
     jmp .append_morse
 
 .fetch_letter:
-    movzx rax, dl
+    movzx rax, dx
     lea r10, [LETTERS]
     mov rax, [r10 + rax*8]
     jmp .append_morse
 
 .fetch_number:
-    movzx rax, dl
+    movzx rax, dx
     lea r10, [NUMBERS]
     mov rax, [r10 + rax*8]
     jmp .append_morse
@@ -318,17 +327,21 @@ convert:
 .copied:
     ; Verificar si requiere espacio
     lea rax, [input_buffer]
-    add rax, r8
-    inc rax
-    cmp byte [rax], 0
+    movzx rdx, r8w
+    shl rdx, 1
+    add rax, rdx
+    add rax, 2
+
+    cmp word [rax], 0
     je .try_next
-    cmp byte [rax], ' '
+    cmp word [rax], SPACE_UC
     je .try_next
 
     cmp rdi, r9
-    jae .done ; Evitar overflow
-    mov word [rdi], ' ' ; Espacio entre letras
+    jae .done
+    mov word [rdi], SPACE_UC ; Espacio entre letras
     add rdi, NEXT_CHARACTER
+    jmp .try_next
 
 .try_next:
     inc r8
@@ -353,25 +366,22 @@ convert:
 
 append_space_separator:
     ; Append space for word separation
-    push rax
-
     cmp rdi, r9
     jae .done_space
-    mov word [rdi], ' ' ; Espacio entre palabras
+    mov word [rdi], SPACE_UC ; Espacio entre palabras
     add rdi, NEXT_CHARACTER
 
     cmp rdi, r9
     jae .done_space
-    mov word [rdi], '/' ; Diagonal para espacio entre palabras
+    mov word [rdi], SLASH_UC ; Diagonal para espacio entre palabras
     add rdi, NEXT_CHARACTER
 
     cmp rdi, r9
     jae .done_space
-    mov word [rdi], ' ' ; Espacio entre palabras
+    mov word [rdi], SPACE_UC ; Espacio entre palabras
     add rdi, NEXT_CHARACTER
 
 .done_space:
-    pop rax
     ret
 
 clear_buffers:
@@ -380,9 +390,9 @@ clear_buffers:
     push rdi
 
     lea rdi, [input_buffer]
-    mov rcx, 160
+    mov rcx, 256
     xor rax, rax
-    rep stosb
+    rep stosW
 
     lea rdi, [output_buffer]
     mov rcx, 2048
