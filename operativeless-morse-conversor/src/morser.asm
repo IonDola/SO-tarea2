@@ -30,9 +30,9 @@ section .data
     ; Program messages
     welcome_msg dw __utf16__(`Bienvenido al Convertidor a Morse Sin Sistema Operativo!\r\n`), 0
     prompt_msg dw __utf16__(`\r\nIngrese el Texto a Traducir:`), 0
-    morse_msg dw __utf16__(`Mosrificado:`), 0
-    new_line: dw 0x000D, 0
-    goodbye_msg dw __utf16__(`Gracias por usar, adios!\r\n`), 0
+    morse_msg dw __utf16__(`Mosrificado:`), 0x000D, 0x000A, 0
+    new_line: dw 0x000D, 0x000A, 0
+    goodbye_msg dw __utf16__(`Gracias por usar, adios!`), 0x000D, 0x000A, 0
 
     ALIGN 8
     LETTERS:
@@ -41,7 +41,7 @@ section .data
         dq ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE
     
     ALIGN 2
-        A: dw __utf16__(".-"), 0
+    A: dw __utf16__(".-"), 0
     B: dw __utf16__("-..."), 0
     C: dw __utf16__("-.-."), 0
     D: dw __utf16__("-.."), 0
@@ -89,7 +89,7 @@ section .bss
 
     ; Buffers
     align 2
-    input_buffer resb 160
+    input_buffer db 256 dup(0)
     output_buffer resw 2048
     end_of_output_buffer:
 
