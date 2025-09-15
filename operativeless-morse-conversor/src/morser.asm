@@ -14,7 +14,6 @@ DEFAULT REL
 ; r15 methods offsets
 %define READ_KEYSTROKE_OFFSET 0x08
 ; Character constants
-%define SCAPE_UC 0x1B
 %define ENTER_UC 0x0D
 %define BACKSPACE_UC 0x08
 %define SPACE_UC 0x20
@@ -25,27 +24,30 @@ DEFAULT REL
 %define MIN_Z_ASCII 0x7A
 %define ZERO_UC 0x0030
 %define NINE_UC 0x0039
+%define SPACE_UC 0x0020
 %define SLASH_UC 0x002F
 %define UPPER_MASK 0xDF
 ; Other constants
-%define HALF_SECCOND_DELAY 0x04738B80 ; Medio segundo
 %define NEXT_CHARACTER 0x02
 %define MAX_INPUT_LENGTH 160
+%define MAX_PERMITED_INPUT_LENGTH 159
 %define MAX_OUTPUT_LENGTH 2048
 section .data
     ; Program messages
     welcome_msg dw __utf16__(`Bienvenido al Convertidor a Morse Sin Sistema Operativo!\r\n`), 0
     prompt_msg dw __utf16__(`\r\nIngrese el Texto a Traducir:`), 0
     morse_msg dw __utf16__(`Morsificado:`), 0x000D, 0x000A, 0
-    new_line: dw 0x000D, 0x000A, 0
     goodbye_msg dw __utf16__(`Gracias por usar, adios!`), 0x000D, 0x000A, 0
+    new_line: dw 0x000D, 0x000A, 0
+    character_buffer dw 0, 0
+    delete_arrow: dw 0x21A9, 0
 
     ALIGN 8
     LETTERS:
         dq A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z
     NUMBERS:
         dq ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE
-    
+
     ALIGN 2
     A: dw '.','_',0
     B: dw '_','.', '.', '.',0
@@ -88,11 +90,12 @@ section .data
     ; Unkwnown character
     UNKNOWN: dw __utf16__("?"), 0
 
+section .bss
     ; Buffers
-    input_buffer: times MAX_INPUT_LENGTH dB 0
-    output_buffer: times MAX_OUTPUT_LENGTH dW 0
+    input_buffer: resb MAX_INPUT_LENGTH
+    output_buffer: resb MAX_OUTPUT_LENGTH
     end_of_output_buffer:
-    key_buffer: dw 0,0
+    key_buffer: resw 2
 section .text
     global _start
 _start:
@@ -126,16 +129,18 @@ _start:
 
     ; Leer input
     .read_loop:
+        ; Reiniciar buffer
+        mov word [key_buffer], 0
+        mov word [key_buffer + NEXT_CHARACTER], 0
+
         mov rcx, r15
         lea rdx, [key_buffer]
         call qword [r15 + READ_KEYSTROKE_OFFSET] ; ReadKeyStroke
         test rax, rax
         jnz .read_loop
 
-        movzx eax, word [key_buffer + 2] ; Leer Unicode
-        
-        cmp al, SCAPE_UC
-        je .exit_program
+        mov dx, word [key_buffer + NEXT_CHARACTER]
+        mov ax, dx
         
         cmp al, ENTER_UC
         je .process_input
@@ -153,43 +158,64 @@ _start:
     
     ; Guardar caracter
     .store_char:
-        cmp ebx, MAX_INPUT_LENGTH
+        cmp ebx, MAX_PERMITED_INPUT_LENGTH
         jae .read_loop ; Evitar overflow
-        mov [input_buffer + rbx], dl
+
+        mov byte [input_buffer + rbx], dl
         inc rbx
+
+        mov word [character_buffer], ax
+        mov word [character_buffer + NEXT_CHARACTER], 0
+        mov rcx, r14
+        lea rdx, [character_buffer]
+        call [r14 + OUTPUT_STRING_OFFSET] ; OutputString
+
         jmp .read_loop
 
     .handle_backspace:
-        test ebx, ebx
+        cmp rbx, 0
         jz .read_loop
         dec rbx
+        
+        mov byte [input_buffer + rbx], 0
+        mov rcx, r14
+        lea rdx, [delete_arrow]
+        call [r14 + OUTPUT_STRING_OFFSET] ; OutputString
+
         jmp .read_loop
     
     .process_input:
-        lea rdi, [rel output_buffer]
-        lea r9, [rel end_of_output_buffer]
-        xor r8d, r8d
-    
-    .next_character:
-        cmp r8d, ebx
-        jae .append_completed ; Fin de input
+        cmp rbx, 0
+        je .repl
+
+        mov rcx, r14
+        lea rdx, [new_line]
+        call [r14 + OUTPUT_STRING_OFFSET] ; OutputString
+
+        lea rdi, [output_buffer] ; output_buffer pointer
+        lea r9, [end_of_output_buffer] ; end of output_buffer
+        xor r8d, r8d ; input_buffer index
+
+    .process_input_loop:
+        mov eax, r8d
+        cmp eax, ebx
+        jae .append_completed
 
         mov dl, [input_buffer + r8]
 
         cmp dl, SPACE_UC
         jne .not_space
         call add_space
-        jmp .after_append
+        jmp .proccess_next_character
 
     .not_space:
-        mov al, dl
-        cmp al, MAY_A_ASCII
+        cmp dl, MAY_A_ASCII
         jb .try_number
-        cmp al, MAY_Z_ASCII
+        cmp dl, MAY_Z_ASCII
         ja .try_number
-        sub al, MAY_A_ASCII
-        movzx rax, al
-        lea r10, [rel LETTERS]
+        sub dl, MAY_A_ASCII
+        movzx rax, dl
+        lea r10, [LETTERS]
         mov rax, [r10 + rax*8]
         jmp .append_morse
     
@@ -200,17 +226,17 @@ _start:
         ja .unknown_char
         sub dl, ZERO_UC
         movzx rax, dl
-        lea r10, [rel NUMBERS]
+        lea r10, [NUMBERS]
         mov rax, [r10 + rax*8]
         jmp .append_morse
     
     .unknown_char:
-        lea rax, [rel UNKNOWN]
+        lea rax, [UNKNOWN]
     
     .append_morse:
         mov cx, [rax]
         test cx, cx
-        jz .copied
+        jz .appended
 
         cmp rdi, r9
         jae .append_completed
@@ -219,22 +245,22 @@ _start:
         add rdi, 2
         jmp .append_morse
     
-    .copied:
+    .appended:
         mov eax, ebx
         dec eax
         cmp r8d, eax
-        jae .after_append
+        jae .proccess_next_character
         mov al, [input_buffer + r8 + 1]
         cmp al, SPACE_UC
-        je .after_append
+        je .proccess_next_character
         cmp rdi, r9
         jae .append_completed
         mov word [rdi], SPACE_UC
         add rdi, 2
     
-    .after_append:
+    .proccess_next_character:
         inc r8d
-        jmp .next_character
+        jmp .process_input_loop
 
     .append_completed:
         cmp rdi, r9
@@ -242,6 +268,10 @@ _start:
         mov word [rdi], 0
 
     .print_conversion:
+        mov rcx, r14
+        lea rdx, [rel new_line]
+        call qword [r14 + OUTPUT_STRING_OFFSET] ; OutputString
+
         mov rcx, r14
         lea rdx, [rel morse_msg]
         call qword [r14 + OUTPUT_STRING_OFFSET] ; OutputString
@@ -254,29 +284,38 @@ _start:
         lea rdx, [rel new_line]
         call qword [r14 + OUTPUT_STRING_OFFSET] ; OutputString
 
-        xor ebx, ebx
+        call clear_input_buffer
         jmp .repl
-    
-    .exit_program:
-    mov rcx, r14
-    lea rdx, [rel goodbye_msg]
-    call qword [r14 + OUTPUT_STRING_OFFSET] ; OutputString
-    ret
 
 add_space:
+    push rax
     cmp rdi, r9
-    jae .done
+    jae .done_space
     mov word [rdi], SPACE_UC
     add rdi, 2
     cmp rdi, r9
-    jae .done
+    jae .done_space
     mov word [rdi], SLASH_UC
     add rdi, 2
     cmp rdi, r9
-    jae .done
+    jae .done_space
     mov word [rdi], SPACE_UC
     add rdi, 2
-.done:
+.done_space:
+    pop rax
+    ret
+
+clear_input_buffer:
+    push rax
+    push rcx
+    push rdi
+    lea rdi, [input_buffer]
+    mov rcx, 160
+    xor rax, rax
+    rep stosb
+    pop rdi
+    pop rcx
+    pop rax
     ret
 
 section .reloc
